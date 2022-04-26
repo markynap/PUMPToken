@@ -21,6 +21,9 @@ contract StakingContract is Ownable {
     // Staking Token
     address public immutable token;
 
+    // Reward Token
+    address public immutable reward;
+
     // User Info
     struct UserInfo {
         uint256 amount;
@@ -40,14 +43,16 @@ contract StakingContract is Ownable {
     event SetEarlyFee(uint earlyFee);
     event SetFeeRecipient(address FeeRecipient);
 
-    constructor(address token_, address feeRecipient_){
+    constructor(address token_, address feeRecipient_, address reward_){
         require(
             token_ != address(0) &&
-            feeRecipient_ != address(0),
+            feeRecipient_ != address(0) &&
+            reward_ != address(0),
             'Zero Address'
         );
         token = token_;
         feeRecipient = feeRecipient_;
+        reward = reward_;
     }
 
     /** Returns the total number of tokens in existence */
