@@ -30,10 +30,10 @@ contract BuyReceiver {
     uint256 public multisigPercent;
 
     // Token -> BNB
-    address[] path;
+    address[] private path;
 
     // router
-    IUniswapV2Router02 router;
+    IUniswapV2Router02 public router;
 
     // Events
     event Approved(address caller, bool isApproved);
