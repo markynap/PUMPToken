@@ -18,7 +18,7 @@ contract StakingContract is Ownable {
     // recipient of fee
     address public feeRecipient;
 
-    // Useless Token
+    // Staking Token
     address public immutable token;
 
     // User Info
