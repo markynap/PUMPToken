@@ -20,14 +20,14 @@ contract BuyReceiver {
     address public constant XUSD = 0x324E8E649A6A3dF817F97CdDBED2b746b62553dD;
 
     // Recipients Of Fees
-    address public treasury = 25;
-    address public multisig = 15;
-    address public rewardLocker = 50;
+    address public treasury;
+    address public multisig;
+    address public rewardLocker;
 
     // Fee Percentages
-    uint256 public treasuryPercent;
-    uint256 public rewardLockerPercent;
-    uint256 public multisigPercent;
+    uint256 public treasuryPercent = 25;
+    uint256 public rewardLockerPercent = 50;
+    uint256 public multisigPercent = 15;
 
     // Token -> BNB
     address[] private path;
