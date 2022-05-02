@@ -50,7 +50,7 @@ contract PUMPToken is IERC20, Ownable {
     constructor() {
 
         // set initial starting supply
-        _totalSupply = 10**9 * 10**_decimals;
+        _totalSupply = 10**8 * 10**18;
 
         // exempt sender for tax-free initial distribution
         permissions[
