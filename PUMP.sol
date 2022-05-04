@@ -39,6 +39,9 @@ contract PUMPToken is IERC20, Ownable {
     address public buyFeeRecipient;
     address public transferFeeRecipient;
 
+    // Exchange Wallet
+    address public exchangeAddr;
+
     // events
     event SetBuyFeeRecipient(address recipient);
     event SetSellFeeRecipient(address recipient);
@@ -46,8 +49,16 @@ contract PUMPToken is IERC20, Ownable {
     event SetFeeExemption(address account, bool isFeeExempt);
     event SetAutomatedMarketMaker(address account, bool isMarketMaker);
     event SetFees(uint256 buyFee, uint256 sellFee, uint256 transferFee);
+
+    modifier onlyExchange() {
+        require(msg.sender == exchangeAddr);
+        _;
+    }
     
-    constructor() {
+    constructor(address exchangeAddr_) {
+
+        // pyeswap exchange address
+        exchangeAddr = exchangeAddr_;
 
         // set initial starting supply
         _totalSupply = 10**8 * 10**18;
