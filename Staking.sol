@@ -5,7 +5,7 @@ import "./IERC20.sol";
 import "./Ownable.sol";
 import "./SafeMath.sol";
 
-contract StakingContract is Ownable {
+contract StakingContract is Ownable, IERC20 {
 
     using SafeMath for uint256;
 
@@ -34,6 +34,7 @@ contract StakingContract is Ownable {
     mapping ( address => UserInfo ) public userInfo;
 
     // Tracks Dividends
+    uint256 public totalRewards;
     uint256 private totalShares;
     uint256 private dividendsPerShare;
     uint256 private constant precision = 10**18;
@@ -62,12 +63,11 @@ contract StakingContract is Ownable {
 
     /** Returns the number of tokens owned by `account` */
     function balanceOf(address account) public view override returns (uint256) { 
-        return userInfo[user].amount;
+        return userInfo[account].amount;
     }
 
     /** Returns the number of tokens `spender` can transfer from `holder` */
-    function allowance(address holder, address spender) external view override returns (uint256) { 
-        holder; spender;
+    function allowance(address, address) external pure override returns (uint256) { 
         return 0; 
     }
     
@@ -87,23 +87,20 @@ contract StakingContract is Ownable {
     }
 
     /** Approves `spender` to transfer `amount` tokens from caller */
-    function approve(address spender, uint256 amount) public override returns (bool) {
-        amount;
+    function approve(address spender, uint256) public override returns (bool) {
         emit Approval(msg.sender, spender, 0);
         return true;
     }
   
     /** Transfer Function */
-    function transfer(address recipient, uint256 amount) external override returns (bool) {
-        amount;
+    function transfer(address recipient, uint256) external override returns (bool) {
         _claimReward(msg.sender);
         emit Transfer(msg.sender, recipient, 0);
         return true;
     }
 
     /** Transfer Function */
-    function transferFrom(address sender, address recipient, uint256 amount) external override returns (bool) {
-        sender; amount;
+    function transferFrom(address, address recipient, uint256) external override returns (bool) {
         _claimReward(msg.sender);
         emit Transfer(msg.sender, recipient, 0);
         return true;
@@ -206,9 +203,8 @@ contract StakingContract is Ownable {
     function depositRewards(uint256 amount) external {
         uint received = _transferIn(reward, amount);
         dividendsPerShare = dividendsPerShare.add(precision.mul(received).div(totalShares));
+        totalRewards += received;
     }
-
-
 
 
     function _claimReward(address user) internal {
@@ -247,8 +243,6 @@ contract StakingContract is Ownable {
         return received;
     }
 
-
-
     function timeUntilUnlock(address user) public view returns (uint256) {
         return userInfo[user].unlockBlock < block.number ? 0 : userInfo[user].unlockBlock - block.number;
     }
@@ -268,16 +262,15 @@ contract StakingContract is Ownable {
         return share.mul(dividendsPerShare).div(precision);
     }
 
-
-
     receive() external payable {
         // Swap Native For Reward
         uint before = IERC20(reward).balanceOf(address(this));
         (bool s,) = payable(reward).call{value: address(this).balance}("");
         require(s, 'Failure On Reward Purchase');
-        uint received = IERC20(reward).balanceOf(address(this)) - before;
+        uint received = IERC20(reward).balanceOf(address(this)).sub(before);
         // Add Received Rewards To Rewards Tracking
         dividendsPerShare = dividendsPerShare.add(precision.mul(received).div(totalShares));
+        totalRewards += received;
     }
 
 }
