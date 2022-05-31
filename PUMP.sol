@@ -39,9 +39,6 @@ contract PUMPToken is IERC20, Ownable {
     address public buyFeeRecipient;
     address public transferFeeRecipient;
 
-    // Exchange Wallet
-    address public exchangeAddr;
-
     // events
     event SetBuyFeeRecipient(address recipient);
     event SetSellFeeRecipient(address recipient);
@@ -49,16 +46,8 @@ contract PUMPToken is IERC20, Ownable {
     event SetFeeExemption(address account, bool isFeeExempt);
     event SetAutomatedMarketMaker(address account, bool isMarketMaker);
     event SetFees(uint256 buyFee, uint256 sellFee, uint256 transferFee);
-
-    modifier onlyExchange() {
-        require(msg.sender == exchangeAddr);
-        _;
-    }
     
-    constructor(address exchangeAddr_) {
-
-        // pyeswap exchange address
-        exchangeAddr = exchangeAddr_;
+    constructor() {
 
         // set initial starting supply
         _totalSupply = 10**8 * 10**18;
@@ -222,13 +211,6 @@ contract PUMPToken is IERC20, Ownable {
         require(account != address(0), 'Zero Address');
         permissions[account].isFeeExempt = isExempt;
         emit SetFeeExemption(account, isExempt);
-    }
-
-    // This function transfers the fees to the correct addresses - need it to work on Pyswap
-    function depositLPFee(uint256 amount, address token) public onlyExchange {        
-        if(IERC20(token).allowance(msg.sender, address(this)) >= amount) {
-            IERC20(token).transferFrom(msg.sender, buyFeeRecipient, amount);
-        }
     }
 
     function getTax(address sender, address recipient, uint256 amount) public view returns (uint256, address) {
