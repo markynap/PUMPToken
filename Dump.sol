@@ -4,7 +4,6 @@ pragma solidity 0.8.4;
 import "./IERC20.sol";
 import "./Ownable.sol";
 import "./SafeMath.sol";
-import "./IUniswapV2Router02.sol";
 import "./ReentrantGuard.sol";
 
 interface IXUSD {
@@ -21,17 +20,17 @@ interface XUSDRoyalty {
 }
 
 /**
- *  Contract: MDB+ Powered by XUSD
+ *  Contract: DUMP Powered by XUSD
  *  Appreciating Stable Coin Inheriting The IP Of XUSD by xSurge
- *  Visit MDB.fund and xsurge.net to learn more about appreciating stable coins
+ *  Visit xsurge.net to learn more about appreciating stable coins
  */
-contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
+contract DUMP is IERC20, Ownable, ReentrancyGuard {
     
     using SafeMath for uint256;
 
     // token data
-    string private constant _name = "MDB+";
-    string private constant _symbol = "MDB+";
+    string private constant _name = "DUMP";
+    string private constant _symbol = "DUMP";
     uint8 private constant _decimals = 18;
     uint256 private constant precision = 10**18;
     
@@ -46,37 +45,23 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
     mapping ( address => bool ) public isTransferFeeExempt;
 
     // Token Activation
-    mapping ( address => bool ) public canTransactPreLaunch;
     bool public tokenActivated;
 
     // Dead Wallet
     address private constant DEAD = 0x000000000000000000000000000000000000dEaD;
 
-    // PCS Router
-    IUniswapV2Router02 private router = IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
-
-    // XUSD Token
-    address public constant XUSD = 0x324E8E649A6A3dF817F97CdDBED2b746b62553dD;
-
     // Royalty Data Fetcher
-    XUSDRoyalty private immutable royaltyTracker;
-
-    // Swap Path From BNB -> BUSD
-    address[] path;
+    XUSDRoyalty private immutable royaltyTracker = XUSDRoyalty(0x9127c5847C78926CEB3bF916Ef0868CE3bDc154F);
 
     // Fees
-    uint256 public mintFee        = 99250;            // 0.75% mint fee
-    uint256 public sellFee        = 99750;            // 0.25% redeem fee 
-    uint256 public transferFee    = 99750;            // 0.25% transfer fee
-    uint256 public stableSwapFee  = 99950;            // 0.05% stable swap fee
+    uint256 public mintFee        = 90000;            // 10% mint fee
+    uint256 public sellFee        = 90000;            // 10% redeem fee 
+    uint256 public transferFee    = 90000;            // 10% transfer fee
+    uint256 public stableSwapFee  = 99900;            // 0.1% stable swap fee
     uint256 private constant feeDenominator = 10**5;
-
-    // Maximum Holdings
-    uint256 public max_holdings = 50_000 * 10**18;
-    uint256 public constant min_max_holdings = 20_000 * 10**18;
     
-    // Underlying Asset Is BUSD
-    IERC20 public constant underlying = IERC20(0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56);
+    // Underlying Asset Is XUSD
+    IERC20 public constant underlying = IERC20(0x324E8E649A6A3dF817F97CdDBED2b746b62553dD);
 
     // initialize some stuff
     constructor(address royalty) {
@@ -89,16 +74,7 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
         royaltyTracker = XUSDRoyalty(royalty);
 
         // Fee Exempt PCS Router And Creator For Initial Distribution
-        isTransferFeeExempt[address(router)] = true;
         isTransferFeeExempt[msg.sender]      = true;
-
-        // Allows Mint Access Pre Activation
-        canTransactPreLaunch[msg.sender] = true;
-
-        // Swap Path For BNB -> BUSD
-        path = new address[](2);
-        path[0] = router.WETH();
-        path[1] = address(underlying);
 
         // allocate initial 1 token
         _balances[msg.sender] = _totalSupply;
@@ -191,14 +167,14 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
     }
 
     /**
-        Mint MDB+ Tokens With The Native Token ( Smart Chain BNB )
+        Mint DUMP Tokens With The Native Token ( Smart Chain BNB )
         This will purchase BUSD with BNB received
         It will then mint tokens to `recipient` based on the number of stable coins received
         `minOut` should be set to avoid the Transaction being front runned
 
-        @param recipient Account to receive minted MDB+ Tokens
+        @param recipient Account to receive minted DUMP Tokens
         @param minOut minimum amount out from BNB -> BUSD - prevents front run attacks
-        @return received number of MDB+ tokens received
+        @return received number of DUMP tokens received
      */
     function mintWithNative(address recipient, uint256 minOut) external payable returns (uint256) {
         _checkGarbageCollector(address(this));
@@ -208,13 +184,13 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
 
 
     /** 
-        Mint MDB+ Tokens For `recipient` By Depositing BUSD Into The Contract
+        Mint DUMP Tokens For `recipient` By Depositing BUSD Into The Contract
             Requirements:
                 Approval from the BUSD prior to purchase
         
-        @param numTokens number of BUSD tokens to mint MDB+ with
-        @param recipient Account to receive minted MDB+ tokens
-        @return tokensMinted number of MDB+ tokens minted
+        @param numTokens number of BUSD tokens to mint DUMP with
+        @param recipient Account to receive minted DUMP tokens
+        @return tokensMinted number of DUMP tokens minted
     */
     function mintWithBacking(uint256 numTokens, address recipient) external nonReentrant returns (uint256) {
         _checkGarbageCollector(address(this));
@@ -223,16 +199,16 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
     }
 
     /** 
-        Burns Sender's MDB+ Tokens and redeems their value in BUSD
-        @param tokenAmount Number of MDB+ Tokens To Redeem, Must be greater than 0
+        Burns Sender's DUMP Tokens and redeems their value in BUSD
+        @param tokenAmount Number of DUMP Tokens To Redeem, Must be greater than 0
     */
     function sell(uint256 tokenAmount) external nonReentrant returns (uint256) {
         return _sell(msg.sender, tokenAmount, msg.sender);
     }
     
     /** 
-        Burns Sender's MDB+ Tokens and redeems their value in BUSD for `recipient`
-        @param tokenAmount Number of MDB+ Tokens To Redeem, Must be greater than 0
+        Burns Sender's DUMP Tokens and redeems their value in BUSD for `recipient`
+        @param tokenAmount Number of DUMP Tokens To Redeem, Must be greater than 0
         @param recipient Recipient Of BUSD transfer, Must not be address(0)
     */
     function sell(uint256 tokenAmount, address recipient) external nonReentrant returns (uint256) {
@@ -253,6 +229,7 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
     function exchange(address tokenIn, address tokenOut, uint256 tokenInAmount, address recipient) external nonReentrant {
         require(
             tokenIn != address(0) && 
+            tokenIn != address(underlying) &&
             tokenOut != address(0) && 
             recipient != address(0) &&
             tokenIn != tokenOut &&
@@ -262,7 +239,7 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
         // log old price
         uint oldPrice = _calculatePrice();
         // instantiate xSwap Router
-        StableSwapRouter swapRouter = StableSwapRouter(IXUSD(XUSD).xSwapRouter());
+        StableSwapRouter swapRouter = StableSwapRouter(IXUSD(address(underlying)).xSwapRouter());
         require(
             address(swapRouter) != address(0),
             'Zero Address'
@@ -272,7 +249,7 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
         // take fee for contract
         uint toSend = received.mul(stableSwapFee).div(feeDenominator);
         // exchange tokenIn for tokenOut
-        swapRouter.exchange(XUSD, tokenIn, tokenOut, toSend, recipient);
+        swapRouter.exchange(address(underlying), tokenIn, tokenOut, toSend, recipient);
         // require price did not somehow fall
         _requirePriceRises(oldPrice);
     }
@@ -280,7 +257,7 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
     /** 
         Allows A User To Erase Their Holdings From Supply 
         DOES NOT REDEEM UNDERLYING ASSET FOR USER
-        @param amount Number of MDB+ Tokens To Burn
+        @param amount Number of DUMP Tokens To Burn
     */
     function burn(uint256 amount) external nonReentrant {
         // get balance of caller
@@ -303,12 +280,12 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
     //////  INTERNAL FUNCTIONS  ///////
     ///////////////////////////////////
     
-    /** Purchases MDB+ Token and Deposits Them in Recipient's Address */
+    /** Purchases DUMP Token and Deposits Them in Recipient's Address */
     function _mintWithNative(address recipient, uint256 minOut) internal nonReentrant returns (uint256) {        
         require(msg.value > 0, 'Zero Value');
         require(recipient != address(0), 'Zero Address');
         require(
-            tokenActivated || canTransactPreLaunch[msg.sender],
+            tokenActivated || msg.sender == getOwner(),
             'Token Not Activated'
         );
         
@@ -319,7 +296,7 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
         uint256 previousBacking = underlying.balanceOf(address(this));
         
         // swap BNB for stable
-        uint256 received = _purchaseBUSD(minOut);
+        uint256 received = _purchaseXUSD(minOut);
 
         // if this is the first purchase, use new amount
         uint256 relevantBacking = previousBacking == 0 ? underlying.balanceOf(address(this)) : previousBacking;
@@ -328,10 +305,10 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
         return _mintTo(recipient, received, relevantBacking, oldPrice);
     }
     
-    /** Stake Tokens and Deposits MDB+ in Sender's Address, Must Have Prior Approval For BUSD */
+    /** Stake Tokens and Deposits DUMP in Sender's Address, Must Have Prior Approval For BUSD */
     function _mintWithBacking(uint256 numBUSD, address recipient) internal returns (uint256) {
         require(
-            tokenActivated || canTransactPreLaunch[msg.sender],
+            tokenActivated || msg.sender == getOwner(),
             'Token Not Activated'
         );
         // users token balance
@@ -355,7 +332,7 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
         return _mintTo(recipient, received, relevantBacking, oldPrice);
     }
     
-    /** Burns MDB+ Tokens And Deposits BUSD Tokens into Recipients's Address */
+    /** Burns DUMP Tokens And Deposits BUSD Tokens into Recipients's Address */
     function _sell(address seller, uint256 tokenAmount, address recipient) internal returns (uint256) {
         require(tokenAmount > 0 && _balances[seller] >= tokenAmount);
         require(seller != address(0) && recipient != address(0));
@@ -394,7 +371,7 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
         return amountUnderlyingAsset;
     }
 
-    /** Handles Minting Logic To Create New MDB+ */
+    /** Handles Minting Logic To Create New DUMP */
     function _mintTo(address recipient, uint256 received, uint256 totalBacking, uint256 oldPrice) private returns(uint256) {
         
         // find the number of tokens we should mint to keep up with the current price
@@ -418,36 +395,34 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
 
         // require price rises
         _requirePriceRises(oldPrice);
-        // require maximum holdings is not met
-        require(
-            getValueOfHoldings(recipient) <= max_holdings,
-            'Value Exceeds Maximum Holdings'
-        );
+
         // differentiate purchase
         emit Minted(recipient, tokensToMint);
         return tokensToMint;
     }
 
     /** Takes Fee */
-    function _takeFee(uint mFee) internal {
+    function _takeFee(uint mFee) internal returns (uint256) {
         (uint fee, address feeRecipient) = getFeeAndRecipient();
         if (fee > 0) {
-            uint fFee = mFee.mul(fee).div(100);
+            uint fFee = mFee.mul(fee).div(10**4);
             uint bFee = amountOut(fFee);
             if (bFee > 0 && feeRecipient != address(0)) {
                 underlying.transfer(feeRecipient, bFee);
             }
+            return fFee;
         }
     }
 
     /** Swaps BNB for BUSD, must get at least `minOut` BUSD back from swap to be successful */
-    function _purchaseBUSD(uint256 minOut) internal returns (uint256) {
+    function _purchaseXUSD(uint256 minOut) internal returns (uint256) {
 
         // previous amount of Tokens before we received any
         uint256 prevTokenAmount = underlying.balanceOf(address(this));
 
         // swap BNB For stable of choice
-        router.swapExactETHForTokens{value: address(this).balance}(minOut, path, address(this), block.timestamp + 300);
+        (bool s,) = payable(address(underlying)).call{value: address(this).balance}("");
+        require(s);
 
         // amount after swap
         uint256 currentTokenAmount = underlying.balanceOf(address(this));
@@ -455,7 +430,7 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
         return currentTokenAmount - prevTokenAmount;
     }
 
-    /** Requires The Price Of MDB+ To Rise For The Transaction To Conclude */
+    /** Requires The Price Of DUMP To Rise For The Transaction To Conclude */
     function _requirePriceRises(uint256 oldPrice) internal {
         // Calculate Price After Transaction
         uint256 newPrice = _calculatePrice();
@@ -510,7 +485,7 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
     ///////////////////////////////////
     
 
-    /** Price Of MDB+ in BUSD With 18 Points Of Precision */
+    /** Price Of DUMP in BUSD With 18 Points Of Precision */
     function calculatePrice() external view returns (uint256) {
         return _calculatePrice();
     }
@@ -523,7 +498,7 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
     }
 
     /**
-        Amount Of Underlying To Receive For `numTokens` of MDB+
+        Amount Of Underlying To Receive For `numTokens` of DUMP
      */
     function amountOut(uint256 numTokens) public view returns (uint256) {
         return _calculatePrice().mul(numTokens).div(precision);
@@ -550,30 +525,8 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
         tokenActivated = true;
         emit TokenActivated(block.number);
     }
-    
-    /** Registers List Of Addresses To Transact Before Token Goes Live */
-    function registerUserToBuyPreLaunch(address[] calldata users) external onlyOwner {
-        for (uint i = 0; i < users.length; i++) {
-            canTransactPreLaunch[users[i]] = true;
-        }
-    }
 
-    /** Updates The Address Of The Flashloan Provider */
-    function setMaxHoldings(uint256 maxHoldings) external onlyOwner {
-        require(maxHoldings >= min_max_holdings, 'Minimum Reached');
-        max_holdings = maxHoldings;
-        emit SetMaxHoldings(maxHoldings);
-    }
-
-    /** Updates The Address Of The Resource Collector */
-    function upgradeRouter(address newRouter) external onlyOwner {
-        require(newRouter != address(0));
-        isTransferFeeExempt[newRouter] = true;
-        router = IUniswapV2Router02(newRouter);
-        emit SetRouter(newRouter);
-    }
-
-    /** Withdraws Tokens Incorrectly Sent To MDB+ */
+    /** Withdraws Tokens Incorrectly Sent To DUMP */
     function withdrawNonStableToken(IERC20 token) external onlyOwner {
         require(address(token) != address(underlying), 'Cannot Withdraw Underlying Asset');
         require(address(token) != address(0), 'Zero Address');
@@ -582,35 +535,23 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
 
     /** 
         Sells Tokens On Behalf Of Other User
-            Requirements:
-                User MUST have more than the max_holdings quantity in BUSD
-                Can only redeem as much as they have excess in BUSD
+        Prevents lost funds from continuously appreciating
      */
-    function sellDownAccountToMaximumHoldings(address account) external nonReentrant onlyOwner {
+    function sellDownAccount(address account) external nonReentrant onlyOwner {
         require(account != address(0), 'Zero Address');
         require(_balances[account] > 0, 'Zero Amount');
 
-        // value of accounts holdings
-        uint valueOfHoldings = getValueOfHoldings(account);
-        require(
-            valueOfHoldings >= max_holdings,
-            'User Does Not Exceed Max Holdings'
+        // make tax exempt
+        isTransferFeeExempt[account] = true;
+        // sell tokens tax free on behalf of frozen wallet
+        _sell(
+            account, 
+            expectedTokenToReceive(amount),
+            amount == 0 ? _balances[account] : amount, 
+            account
         );
-
-        // amount to sell to bring to max holdings
-        uint256 amtToSellBUSD = valueOfHoldings.sub(max_holdings);
-
-        // convert to MDB+
-        uint256 mdbPlusToSell = amtToSellBUSD.mul(precision).div(_calculatePrice());
-
-        // sell excess tokens
-        if (mdbPlusToSell > 0) {
-            _sell(
-                account,
-                mdbPlusToSell, 
-                account
-            );
-        }
+        // remove tax exemption
+        isTransferFeeExempt[account] = false;
     }
 
     /** 
@@ -618,9 +559,9 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
         Must Be Within Bounds ( Between 0% - 2% ) 
     */
     function setFees(uint256 _mintFee, uint256 _transferFee, uint256 _sellFee, uint256 _stableSwapFee) external onlyOwner {
-        require(_mintFee >= 97000);       // capped at 3% fee
-        require(_transferFee >= 97000);   // capped at 3% fee
-        require(_sellFee >= 97000);       // capped at 3% fee
+        require(_mintFee >= 90000);       // capped at 10% fee
+        require(_transferFee >= 90000);   // capped at 10% fee
+        require(_sellFee >= 90000);       // capped at 10% fee
         require(_stableSwapFee >= 99000); // capped at 1% fee
         
         mintFee = _mintFee;
@@ -656,12 +597,8 @@ contract MDBPlus is IERC20, Ownable, ReentrancyGuard {
     // Balance Tracking
     event Burn(address from, uint256 amountTokensErased);
     event GarbageCollected(uint256 amountTokensErased);
-    event Redeemed(address seller, uint256 amountMDB, uint256 amountBUSD);
+    event Redeemed(address seller, uint256 amountDUMP, uint256 amountBUSD);
     event Minted(address recipient, uint256 numTokens);
-
-    // Upgradable Contract Tracking
-    event SetMaxHoldings(uint256 maxHoldings);
-    event SetRouter(address newRouter);
 
     // Governance Tracking
     event SetPermissions(address Contract, bool feeExempt);
