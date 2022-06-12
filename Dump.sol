@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity 0.8.4;
+pragma solidity 0.8.14;
 
 import "./IERC20.sol";
 import "./Ownable.sol";
@@ -51,7 +51,7 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
     address private constant DEAD = 0x000000000000000000000000000000000000dEaD;
 
     // Royalty Data Fetcher
-    XUSDRoyalty private immutable royaltyTracker = XUSDRoyalty(0x9127c5847C78926CEB3bF916Ef0868CE3bDc154F);
+    XUSDRoyalty private constant royaltyTracker = XUSDRoyalty(0x9127c5847C78926CEB3bF916Ef0868CE3bDc154F);
 
     // Fees
     uint256 public mintFee        = 90000;            // 10% mint fee
@@ -63,20 +63,9 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
     // Underlying Asset Is XUSD
     IERC20 public constant underlying = IERC20(0x324E8E649A6A3dF817F97CdDBED2b746b62553dD);
 
-    // initialize some stuff
-    constructor(address royalty) {
-        require(
-            royalty != address(0),
-            'Zero Address'
-        );
-
-        // init royalty system
-        royaltyTracker = XUSDRoyalty(royalty);
-
-        // Fee Exempt PCS Router And Creator For Initial Distribution
+    // initialize
+    constructor() {
         isTransferFeeExempt[msg.sender]      = true;
-
-        // allocate initial 1 token
         _balances[msg.sender] = _totalSupply;
         emit Transfer(address(0), msg.sender, _totalSupply);
     }
