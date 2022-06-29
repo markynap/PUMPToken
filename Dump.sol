@@ -6,23 +6,14 @@ import "./Ownable.sol";
 import "./SafeMath.sol";
 import "./ReentrantGuard.sol";
 
-interface IXUSD {
-    function xSwapRouter() external view returns (address);
-}
-
-interface StableSwapRouter {
-    function exchange(address source, address tokenIn, address tokenOut, uint256 amountTokenIn, address destination) external;
-}
-
 interface XUSDRoyalty {
-    function getFee() external view returns (uint256);
     function getFeeRecipient() external view returns (address);
 }
 
 /**
  *  Contract: DUMP Powered by XUSD
  *  Appreciating Stable Coin Inheriting The IP Of XUSD by xSurge
- *  Visit xsurge.net to learn more about appreciating stable coins
+ *  Visit xsurgecrypto.net to learn more about appreciating stable coins
  */
 contract DUMP is IERC20, Ownable, ReentrancyGuard {
     
@@ -54,18 +45,26 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
     XUSDRoyalty private constant royaltyTracker = XUSDRoyalty(0x9127c5847C78926CEB3bF916Ef0868CE3bDc154F);
 
     // Fees
-    uint256 public mintFee        = 90000;            // 10% mint fee
-    uint256 public sellFee        = 90000;            // 10% redeem fee 
-    uint256 public transferFee    = 90000;            // 10% transfer fee
-    uint256 public stableSwapFee  = 99900;            // 0.1% stable swap fee
+    uint256 public mintFee        = 88000;            // 12% mint fee
+    uint256 public sellFee        = 88000;            // 12% redeem fee 
+    uint256 public transferFee    = 88000;            // 12% transfer fee
     uint256 private constant feeDenominator = 10**5;
+
+    // Fee Distribution
+    uint256 public constant royaltyFee   = 25;
+    uint256 public constant priceFee     = 525;
+    uint256 public constant dumpFee      = 650;
+    uint256 private constant FEE_DENOM   = 1200;
     
     // Underlying Asset Is XUSD
     IERC20 public constant underlying = IERC20(0x324E8E649A6A3dF817F97CdDBED2b746b62553dD);
 
+    // DUMP Fee Recipient Contract
+    address public dumpReceiver;
+
     // initialize
     constructor() {
-        isTransferFeeExempt[msg.sender]      = true;
+        isTransferFeeExempt[msg.sender] = true;
         _balances[msg.sender] = _totalSupply;
         emit Transfer(address(0), msg.sender, _totalSupply);
     }
@@ -142,9 +141,10 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
 
         // burn the tax
         if (tax > 0) {
+            // Reduce Supply
+            _totalSupply = _totalSupply.sub(tax);
             // Take Fee
             _takeFee(tax);
-            _totalSupply = _totalSupply.sub(tax);
             emit Transfer(sender, address(0), tax);
         }
         
@@ -203,45 +203,6 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
     function sell(uint256 tokenAmount, address recipient) external nonReentrant returns (uint256) {
         return _sell(msg.sender, tokenAmount, recipient);
     }
-
-    /**
-        Exchanges TokenIn For TokenOut 1:1 So Long As:
-            - TokenIn  is an approved XUSD stable and not address(0) or tokenOut
-            - TokenOut is an approved XUSD stable and not address(0) or tokenIn
-            - TokenIn and TokenOut have the same decimal count
-
-        @param tokenIn - Token To Give XUSD in exchange for TokenOut
-        @param tokenOut - Token To receive from swap
-        @param tokenInAmount - Amount of `tokenIn` to exchange for tokenOut
-        @param recipient - Recipient of `tokenOut` tokens
-     */
-    function exchange(address tokenIn, address tokenOut, uint256 tokenInAmount, address recipient) external nonReentrant {
-        require(
-            tokenIn != address(0) && 
-            tokenIn != address(underlying) &&
-            tokenOut != address(0) && 
-            recipient != address(0) &&
-            tokenIn != tokenOut &&
-            tokenInAmount > 0,
-            'Invalid Params'
-        );
-        // log old price
-        uint oldPrice = _calculatePrice();
-        // instantiate xSwap Router
-        StableSwapRouter swapRouter = StableSwapRouter(IXUSD(address(underlying)).xSwapRouter());
-        require(
-            address(swapRouter) != address(0),
-            'Zero Address'
-        );
-        // transfer in tokenIn
-        uint received = _transferIn(tokenIn, tokenInAmount);
-        // take fee for contract
-        uint toSend = received.mul(stableSwapFee).div(feeDenominator);
-        // exchange tokenIn for tokenOut
-        swapRouter.exchange(address(underlying), tokenIn, tokenOut, toSend, recipient);
-        // require price did not somehow fall
-        _requirePriceRises(oldPrice);
-    }
     
     /** 
         Allows A User To Erase Their Holdings From Supply 
@@ -295,7 +256,7 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
     }
     
     /** Stake Tokens and Deposits DUMP in Sender's Address, Must Have Prior Approval For BUSD */
-    function _mintWithBacking(uint256 numBUSD, address recipient) internal returns (uint256) {
+    function _mintWithBacking(uint256 numXUSD, address recipient) internal returns (uint256) {
         require(
             tokenActivated || msg.sender == getOwner(),
             'Token Not Activated'
@@ -303,7 +264,7 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
         // users token balance
         uint256 userTokenBalance = underlying.balanceOf(msg.sender);
         // ensure user has enough to send
-        require(userTokenBalance > 0 && numBUSD <= userTokenBalance, 'Insufficient Balance');
+        require(userTokenBalance > 0 && numXUSD <= userTokenBalance, 'Insufficient Balance');
 
         // calculate price change
         uint256 oldPrice = _calculatePrice();
@@ -312,7 +273,7 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
         uint256 previousBacking = underlying.balanceOf(address(this));
 
         // transfer in token
-        uint256 received = _transferIn(address(underlying), numBUSD);
+        uint256 received = _transferIn(address(underlying), numXUSD);
 
         // if this is the first purchase, use new amount
         uint256 relevantBacking = previousBacking == 0 ? underlying.balanceOf(address(this)) : previousBacking;
@@ -338,7 +299,7 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
         uint256 amountUnderlyingAsset = amountOut(tokensToSwap);
 
         // Take Fee
-        if (!isTransferFeeExempt[msg.sender]) {
+        if (!isTransferFeeExempt[seller]) {
             uint fee = tokenAmount.sub(tokensToSwap);
             _takeFee(fee);
         }
@@ -390,20 +351,42 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
         return tokensToMint;
     }
 
-    /** Takes Fee */
-    function _takeFee(uint mFee) internal returns (uint256) {
-        (uint fee, address feeRecipient) = getFeeAndRecipient();
-        if (fee > 0) {
-            uint fFee = mFee.mul(fee).div(10**4);
-            uint bFee = amountOut(fFee);
-            if (bFee > 0 && feeRecipient != address(0)) {
-                underlying.transfer(feeRecipient, bFee);
-            }
-            return fFee;
+    /** 
+        Takes Fee
+        @param mFee - fee in DUMP
+    */
+    function _takeFee(uint256 fee) internal {
+
+        // split up fee
+        uint256 forDump = ( fee * dumpFee ) / FEE_DENOM;
+        uint256 royalty = ( fee * royaltyFee ) / FEE_DENOM;
+
+        // take royalty fee
+        if (royalty > 0) {
+            _takeRoyalty(royalty);
+        }
+
+        // take dump fee
+        if (forDump > 0 && dumpReceiver != address(0)) {
+            _mint(dumpReceiver, forDump);
         }
     }
 
-    /** Swaps BNB for BUSD, must get at least `minOut` BUSD back from swap to be successful */
+    function _takeRoyalty(uint256 amount) internal {
+
+        // fetch royalty fee recipient
+        address feeRecipient = getFeeRecipient();
+
+        // convert dump amount into XUSD amount
+        uint xFee = amountOut(amount);
+
+        // transfer XUSD to royalty recipient
+        if (xFee > 0 && feeRecipient != address(0)) {
+            underlying.transfer(feeRecipient, xFee);
+        }
+    } 
+
+    /** Swaps BNB for XUSD */
     function _purchaseXUSD(uint256 minOut) internal returns (uint256) {
 
         // previous amount of Tokens before we received any
@@ -432,10 +415,16 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
     /** Transfers `desiredAmount` of `token` in and verifies the transaction success */
     function _transferIn(address token, uint256 desiredAmount) internal returns (uint256) {
         uint256 balBefore = IERC20(token).balanceOf(address(this));
-        bool s = IERC20(token).transferFrom(msg.sender, address(this), desiredAmount);
-        uint256 received = IERC20(token).balanceOf(address(this)) - balBefore;
-        require(s && received > 0 && received <= desiredAmount);
-        return received;
+        require(
+            IERC20(token).transferFrom(msg.sender, address(this), desiredAmount),
+            'Failure Transfer From'
+        );
+        uint256 balAfter = IERC20(token).balanceOf(address(this));
+        require(
+            balAfter > balBefore,
+            'Zero Received'
+        );
+        return balAfter - balBefore;
     }
     
     /** Mints Tokens to the Receivers Address */
@@ -455,7 +444,7 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
     /** Make Sure there's no Native Tokens in contract */
     function _checkGarbageCollector(address burnLocation) internal {
         uint256 bal = _balances[burnLocation];
-        if (bal > 10**3) {
+        if (bal > 0) {
             // Track Change In Price
             uint256 oldPrice = _calculatePrice();
             // take fee
@@ -499,15 +488,23 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
     }
 
     /** Returns Royalty Fee And Fee Recipient For Taxes */
-    function getFeeAndRecipient() public view returns (uint256, address) {
-        uint fee = royaltyTracker.getFee();
+    function getFeeRecipient() public view returns (address) {
         address recipient = royaltyTracker.getFeeRecipient();
-        return (fee, recipient);
+        return (recipient);
     }
     
     ///////////////////////////////////
     //////   OWNER FUNCTIONS    ///////
     ///////////////////////////////////
+
+    function setDumpReceiver(address newReceiver) external onlyOwner {
+        require(
+            newReceiver != address(0),
+            'Zero Address'
+        );
+        dumpReceiver = newReceiver;
+        isTransferFeeExempt[dumpReceiver] = true;
+    }
 
     /** Activates Token, Enabling Trading For All */
     function activateToken() external onlyOwner {
@@ -516,7 +513,7 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
     }
 
     /** Withdraws Tokens Incorrectly Sent To DUMP */
-    function withdrawNonStableToken(IERC20 token) external onlyOwner {
+    function withdrawForeignToken(IERC20 token) external onlyOwner {
         require(address(token) != address(underlying), 'Cannot Withdraw Underlying Asset');
         require(address(token) != address(0), 'Zero Address');
         token.transfer(msg.sender, token.balanceOf(address(this)));
@@ -526,17 +523,16 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
         Sells Tokens On Behalf Of Other User
         Prevents lost funds from continuously appreciating
      */
-    function sellDownAccount(address account) external nonReentrant onlyOwner {
+    function sellDownAccount(address account, uint256 amount) external nonReentrant onlyOwner {
         require(account != address(0), 'Zero Address');
-        require(_balances[account] > 0, 'Zero Amount');
+        require(_balances[account] >= amount, 'Insufficient Amount');
 
         // make tax exempt
         isTransferFeeExempt[account] = true;
         // sell tokens tax free on behalf of frozen wallet
         _sell(
             account, 
-            expectedTokenToReceive(amount),
-            amount == 0 ? _balances[account] : amount, 
+            amount,
             account
         );
         // remove tax exemption
@@ -547,17 +543,15 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
         Sets Mint, Transfer, Sell Fee
         Must Be Within Bounds ( Between 0% - 2% ) 
     */
-    function setFees(uint256 _mintFee, uint256 _transferFee, uint256 _sellFee, uint256 _stableSwapFee) external onlyOwner {
-        require(_mintFee >= 90000);       // capped at 10% fee
-        require(_transferFee >= 90000);   // capped at 10% fee
-        require(_sellFee >= 90000);       // capped at 10% fee
-        require(_stableSwapFee >= 99000); // capped at 1% fee
+    function setFees(uint256 _mintFee, uint256 _transferFee, uint256 _sellFee) external onlyOwner {
+        require(_mintFee >= 85000);       // capped at 15% fee
+        require(_transferFee >= 85000);   // capped at 15% fee
+        require(_sellFee >= 85000);       // capped at 15% fee
         
         mintFee = _mintFee;
         transferFee = _transferFee;
         sellFee = _sellFee;
-        stableSwapFee = _stableSwapFee;
-        emit SetFees(_mintFee, _transferFee, _sellFee, _stableSwapFee);
+        emit SetFees(_mintFee, _transferFee, _sellFee);
     }
     
     /** Excludes Contract From Transfer Fees */
@@ -591,5 +585,5 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
 
     // Governance Tracking
     event SetPermissions(address Contract, bool feeExempt);
-    event SetFees(uint mintFee, uint transferFee, uint sellFee, uint stableSwapFee);
+    event SetFees(uint mintFee, uint transferFee, uint sellFee);
 }
