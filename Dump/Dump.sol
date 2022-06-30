@@ -10,6 +10,11 @@ interface XUSDRoyalty {
     function getFeeRecipient() external view returns (address);
 }
 
+interface IXUSD {
+    function sell(uint256 tokenAmount, address desiredToken, address recipient) external returns (address, uint256);
+    function getUnderlyingAssets() external override view returns(address[] memory);
+}
+
 /**
  *  Contract: DUMP Powered by XUSD
  *  Appreciating Stable Coin Inheriting The IP Of XUSD by xSurge
@@ -141,10 +146,10 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
 
         // burn the tax
         if (tax > 0) {
-            // Reduce Supply
-            _totalSupply = _totalSupply.sub(tax);
             // Take Fee
             _takeFee(tax);
+            // Reduce Supply
+            _totalSupply = _totalSupply.sub(tax);
             emit Transfer(sender, address(0), tax);
         }
         
@@ -191,7 +196,7 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
         Burns Sender's DUMP Tokens and redeems their value in BUSD
         @param tokenAmount Number of DUMP Tokens To Redeem, Must be greater than 0
     */
-    function sell(uint256 tokenAmount) external nonReentrant returns (uint256) {
+    function sell(uint256 tokenAmount) external nonReentrant returns (address, uint256) {
         return _sell(msg.sender, tokenAmount, msg.sender);
     }
     
@@ -200,7 +205,7 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
         @param tokenAmount Number of DUMP Tokens To Redeem, Must be greater than 0
         @param recipient Recipient Of BUSD transfer, Must not be address(0)
     */
-    function sell(uint256 tokenAmount, address recipient) external nonReentrant returns (uint256) {
+    function sell(uint256 tokenAmount, address recipient) external nonReentrant returns (address, uint256) {
         return _sell(msg.sender, tokenAmount, recipient);
     }
     
@@ -283,7 +288,7 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
     }
     
     /** Burns DUMP Tokens And Deposits BUSD Tokens into Recipients's Address */
-    function _sell(address seller, uint256 tokenAmount, address recipient) internal returns (uint256) {
+    function _sell(address seller, uint256 tokenAmount, address recipient) internal returns (address, uint256) {
         require(tokenAmount > 0 && _balances[seller] >= tokenAmount);
         require(seller != address(0) && recipient != address(0));
         
@@ -307,18 +312,20 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
         // burn from sender + supply 
         _burn(seller, tokenAmount);
 
+        // fetch token to sell for
+        address tokenToSell = tokenToSellFor();
+
         // send Tokens to Seller
-        require(
-            underlying.transfer(recipient, amountUnderlyingAsset), 
-            'Underlying Transfer Failure'
-        );
+        IXUSD(address(underlying)).sell(amountUnderlyingAsset, tokenToSell, recipient);
 
         // require price rises
         _requirePriceRises(oldPrice);
+
         // Differentiate Sell
         emit Redeemed(seller, tokenAmount, amountUnderlyingAsset);
+
         // return token redeemed and amount underlying
-        return amountUnderlyingAsset;
+        return (tokenToSell, amountUnderlyingAsset);
     }
 
     /** Handles Minting Logic To Create New DUMP */
@@ -430,6 +437,27 @@ contract DUMP is IERC20, Ownable, ReentrancyGuard {
             'Zero Received'
         );
         return balAfter - balBefore;
+    }
+
+    /** XUSD Stable With Greatest Supply */
+    function tokenToSellFor() public view returns (address) {
+
+        address[] memory underlyings = IXUSD(address(underlying)).getUnderlyingAssets();
+        uint MAX = 0;
+        address stable = address(0);
+        uint len = underlyings.length;
+        for (uint i = 0; i < len;) {
+            address potential = underlyings[i];
+            if (potential != address(0)) {
+                uint bal = IERC20(potential).balanceOf(address(underlying));
+                if (bal > MAX) {
+                    MAX = bal;
+                    stable = potential;
+                }
+            }
+            unchecked { ++i; }
+        }
+        return stable == address(0) ? underlyings[0] : stable;
     }
     
     /** Mints Tokens to the Receivers Address */

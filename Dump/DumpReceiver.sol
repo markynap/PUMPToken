@@ -12,7 +12,7 @@ interface IXUSD {
 }
 
 interface IDUMP {
-    function sell(uint256 tokenAmount) external returns (uint256);
+    function sell(uint256 tokenAmount) external returns (address, uint256);
 }
 
 interface IPUMP {
@@ -42,7 +42,6 @@ contract FeeReceiver {
 
     // Token -> BNB
     address[] private path;
-    address[] private busdPath;
 
     // bounty percent
     uint256 public bountyPercent = 1;
@@ -63,10 +62,6 @@ contract FeeReceiver {
         path = new address[](2);
         path[0] = router.WETH();
         path[1] = PUMP;
-
-        busdPath = new address[](2);
-        busdPath[0] = BUSD;
-        busdPath[1] = router.WETH();
     }
 
     function trigger() external {
@@ -101,18 +96,21 @@ contract FeeReceiver {
 
     function _dumpToBNB() internal {
 
-        // Sell Dump For XUSD
-        IDUMP(DUMP).sell(IERC20(DUMP).balanceOf(address(this)));
+        // Sell Dump For Stable
+        (address token,) = IDUMP(DUMP).sell(IERC20(DUMP).balanceOf(address(this)));
 
-        // Sell XUSD For BUSD
-        IXUSD(XUSD).sell(IERC20(XUSD).balanceOf(address(this)), BUSD);
-
-        // Swap BUSD for BNB
-        IERC20(BUSD).approve(address(router), IERC20(BUSD).balanceOf(address(this)));
+        // Swap Stable for BNB
+        uint stableBal = IERC20(token).balanceOf(address(this))
+        address[] memory sPath = new address[](2);
+        sPath[0] = token;
+        sPath[1] = router.WETH();
+        
+        // make the swap
+        IERC20(token).approve(address(router), stableBal);
         router.swapExactTokensForETH(
-            IERC20(BUSD).balanceOf(address(this)),
+            stableBal,
             0,
-            busdPath,
+            sPath,
             address(this),
             block.timestamp + 300
         );
