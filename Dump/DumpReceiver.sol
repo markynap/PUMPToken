@@ -100,7 +100,7 @@ contract FeeReceiver {
         (address token,) = IDUMP(DUMP).sell(IERC20(DUMP).balanceOf(address(this)));
 
         // Swap Stable for BNB
-        uint stableBal = IERC20(token).balanceOf(address(this))
+        uint stableBal = IERC20(token).balanceOf(address(this));
         address[] memory sPath = new address[](2);
         sPath[0] = token;
         sPath[1] = router.WETH();
@@ -114,6 +114,7 @@ contract FeeReceiver {
             address(this),
             block.timestamp + 300
         );
+        delete sPath;
     }
 
     function _buyBurnPump(uint amount) internal {
