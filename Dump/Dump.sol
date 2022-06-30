@@ -12,7 +12,7 @@ interface XUSDRoyalty {
 
 interface IXUSD {
     function sell(uint256 tokenAmount, address desiredToken, address recipient) external returns (address, uint256);
-    function getUnderlyingAssets() external override view returns(address[] memory);
+    function getUnderlyingAssets() external view returns(address[] memory);
 }
 
 /**
